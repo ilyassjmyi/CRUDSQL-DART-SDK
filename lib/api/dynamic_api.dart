@@ -16,6 +16,194 @@ class DynamicApi {
 
   final ApiClient apiClient;
 
+  void listen(
+    String model,
+    String eventType,
+    void Function(String event, String model, dynamic data) callback,
+  ) {
+    final auth = apiClient.authentication as HttpBearerAuth;
+    final authToken = auth.accessToken is String
+        ? auth.accessToken
+        : (auth.accessToken as HttpBearerAuthProvider)();
+    final baseUrl = apiClient.basePath;
+    final wsProtocol = baseUrl.startsWith('https') ? 'wss' : 'ws';
+    final url =
+        '$wsProtocol://${baseUrl.replaceFirst(RegExp(r'^https?://'), '')}/ws/$model/$eventType';
+
+    final channel = IOWebSocketChannel.connect(
+      Uri.parse(url),
+      headers: {
+        'Authorization': 'Bearer $authToken',
+      },
+    );
+
+    channel.stream.listen(
+      (message) {
+        final decodedMessage = jsonDecode(message);
+        final event = decodedMessage['event'];
+        final model = decodedMessage['model'];
+        final data = decodedMessage['data'];
+        callback(event, model, data);
+      },
+      onDone: () {
+        channel.sink.close(status.goingAway);
+      },
+      onError: (error) {
+        print('WebSocket error: $error');
+      },
+    );
+  }
+
+  /// Delete multiple entities
+  ///
+  /// Delete multiple entities that match the provided query expression
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] model (required):
+  ///   Model Name
+  ///
+  /// * [QueryQueryFilter] filter (required):
+  ///   Filter conditions
+  Future<Response> modelFilterDeleteWithHttpInfo(
+    String model,
+    QueryQueryFilter filter,
+  ) async {
+    // ignore: prefer_const_declarations
+    final path = r'/{model}/filter'.replaceAll('{model}', model);
+
+    // ignore: prefer_final_locals
+    Object? postBody = filter;
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'DELETE',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Delete multiple entities
+  ///
+  /// Delete multiple entities that match the provided query expression
+  ///
+  /// Parameters:
+  ///
+  /// * [String] model (required):
+  ///   Model Name
+  ///
+  /// * [QueryQueryFilter] filter (required):
+  ///   Filter conditions
+  Future<Map<String, Object>?> DeleteWhere(
+    String model,
+    QueryQueryFilter filter,
+  ) async {
+    final response = await modelFilterDeleteWithHttpInfo(
+      model,
+      filter,
+    );
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return Map<String, Object>.from(
+        await apiClient.deserializeAsync(
+            await _decodeBodyBytes(response), 'Map<String, Object>'),
+      );
+    }
+    return null;
+  }
+
+  /// Update multiple entities
+  ///
+  /// Update multiple entities that match the provided query expression
+  ///
+  /// Note: This method returns the HTTP [Response].
+  ///
+  /// Parameters:
+  ///
+  /// * [String] model (required):
+  ///   Model Name
+  ///
+  /// * [QueryEntityWithRelations] entity (required):
+  ///   Entity Data
+  Future<Response> modelFilterPutWithHttpInfo(String model,
+      QueryEntityWithRelations entity, QueryQueryFilter filter) async {
+    // ignore: prefer_const_declarations
+    final path = r'/{model}/filter'.replaceAll('{model}', model);
+
+    // ignore: prefer_final_locals
+    Object? postBody = {
+      "MainEntity": entity.mainEntity,
+      "Relations": entity.relations,
+      "Expressions": filter.expressions
+    };
+
+    final queryParams = <QueryParam>[];
+    final headerParams = <String, String>{};
+    final formParams = <String, String>{};
+
+    const contentTypes = <String>['application/json'];
+
+    return apiClient.invokeAPI(
+      path,
+      'PUT',
+      queryParams,
+      postBody,
+      headerParams,
+      formParams,
+      contentTypes.isEmpty ? null : contentTypes.first,
+    );
+  }
+
+  /// Update multiple entities
+  ///
+  /// Update multiple entities that match the provided query expression
+  ///
+  /// Parameters:
+  ///
+  /// * [String] model (required):
+  ///   Model Name
+  ///
+  /// * [QueryEntityWithRelations] entity (required):
+  ///   Entity Data
+  Future<Map<String, Object>?> UpdateWhere(
+    String model,
+    QueryEntityWithRelations entity,
+    QueryQueryFilter filter,
+  ) async {
+    final response = await modelFilterPutWithHttpInfo(model, entity, filter);
+    if (response.statusCode >= HttpStatus.badRequest) {
+      throw ApiException(response.statusCode, await _decodeBodyBytes(response));
+    }
+    // When a remote server returns no body with a status of 204, we shall not decode it.
+    // At the time of writing this, `dart:convert` will throw an "Unexpected end of input"
+    // FormatException when trying to decode an empty string.
+    if (response.body.isNotEmpty &&
+        response.statusCode != HttpStatus.noContent) {
+      return Map<String, Object>.from(
+        await apiClient.deserializeAsync(
+            await _decodeBodyBytes(response), 'Map<String, Object>'),
+      );
+    }
+    return null;
+  }
+
   /// Filter entities
   ///
   /// Filter entities using complex conditions including field expressions, logical operations, and relationship filtering

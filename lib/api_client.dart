@@ -18,7 +18,6 @@ class ApiClient {
 
   final String basePath;
   final Authentication? authentication;
-
   var _client = Client();
   final _defaultHeaderMap = <String, String>{};
 
